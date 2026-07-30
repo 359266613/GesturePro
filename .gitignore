@@ -4,3 +4,4 @@ packages/
 SquidGesturePro插件备份设置格式/
 *.deb
 squid_extracted/
+*.log
