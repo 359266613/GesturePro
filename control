@@ -1,0 +1,11 @@
+Package: com.axs.gesturepro
+Name: GesturePro
+Version: 5.2.0
+Architecture: iphoneos-arm
+Description: 这是有款自定义手势操作插件
+Maintainer: Axs
+Author: Axs
+Section: Axs-Tweaks
+Depends: mobilesubstrate
+Icon: https://axs66.github.io/pro/icon/gesturepro.png
+Sileodepiction: https://axs66.github.io/pro/sileodepiction/gesturepro/js.json
