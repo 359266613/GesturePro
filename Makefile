@@ -15,7 +15,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = GesturePro
 
-GesturePro_FILES = ActionGesture.xm ActionGestureSettings.xm ActionGestureHelper.m
+GesturePro_FILES = GesturePro.xm GestureProSettings.xm GestureProHelper.m
 GesturePro_CFLAGS += -fobjc-arc -Wno-deprecated-declarations -fno-modules
 GesturePro_CCFLAGS += -fno-modules -fno-cxx-modules
 GesturePro_FRAMEWORKS += Foundation UIKit CoreMotion
