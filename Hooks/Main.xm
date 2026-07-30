@@ -1,40 +1,91 @@
 // GesturePro — 完全复刻 SquidGesturePro 架构
-// TouchThroughWindow + UIGestureRecognizer + manual touch fallback
+// TouchThroughWindow + UIGestureRecognizer + CFNotificationCenter
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <CoreFoundation/CoreFoundation.h>
 #import "AxsPrivate.h"
 #import "AxsConfig.h"
 #import "AxsActionExecutor.h"
 
 // =============================================================================
-#pragma mark - AxsTouchThroughWindow（核心：触摸穿透窗口）
+#pragma mark - 文件日志
+// =============================================================================
+
+#define AXS_LOG_PATH @"/var/mobile/Documents/gesturepro.log"
+
+static void _AxsLog(NSString *format, ...) {
+    va_list args;
+    va_start(args, format);
+    NSString *msg = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+
+    NSDateFormatter *df = [[NSDateFormatter alloc] init];
+    df.dateFormat = @"HH:mm:ss.SSS";
+    NSString *ts = [df stringFromDate:[NSDate date]];
+    NSString *line = [NSString stringWithFormat:@"[%@] %@\n", ts, msg];
+
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm fileExistsAtPath:AXS_LOG_PATH]) {
+        [line writeToFile:AXS_LOG_PATH atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    } else {
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:AXS_LOG_PATH];
+        if (fh) {
+            [fh seekToEndOfFile];
+            [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+            [fh closeFile];
+        }
+    }
+}
+
+// =============================================================================
+#pragma mark - AxsTouchThroughWindow
 // =============================================================================
 
 @interface AxsTouchThroughWindow : UIWindow
-@property (nonatomic, weak) id gestureTarget;
 @end
 
 @implementation AxsTouchThroughWindow
 
-// 关键：让不命中手势识别器的触摸穿透到底层窗口
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hit = [super hitTest:point withEvent:event];
-    // 只有当触摸点命中手势识别器所在的 view（即 self 上添加了 GR）时才返回
-    // 否则返回 nil 让触摸穿透
     if (hit == self) {
-        // 检查是否有手势识别器可能响应
         for (UIGestureRecognizer *gr in self.gestureRecognizers) {
-            if (gr.enabled) {
-                return self; // 有启用的手势识别器，保留触摸
-            }
+            if (gr.enabled) return self;
         }
-        return nil; // 无手势识别器，穿透
+        return nil;
     }
     return hit;
 }
 
 @end
+
+// =============================================================================
+#pragma mark - 配置变更回调（C 函数，供 CFNotificationCenter 使用）
+// =============================================================================
+
+static void PrefsChangedCallback(CFNotificationCenterRef center,
+                                  void *observer,
+                                  CFStringRef name,
+                                  const void *object,
+                                  CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        _AxsLog(@"Prefs changed notification received");
+        BOOL enabled = [AxsConfig sharedConfig].isEnabled;
+        _AxsLog(@"  enabled = %d", enabled);
+
+        // 通过 AxsGestureHandler 的类方法重新安装
+        Class cls = NSClassFromString(@"AxsGestureHandler");
+        if (cls) {
+            id handler = [cls performSelector:@selector(shared)];
+            if (enabled) {
+                [handler performSelector:@selector(install)];
+            } else {
+                [handler performSelector:@selector(uninstall)];
+            }
+        }
+    });
+}
 
 // =============================================================================
 #pragma mark - 手势处理器
@@ -51,12 +102,10 @@
 
 @property (nonatomic, assign) NSInteger currentTouchRegion;
 @property (nonatomic, assign) BOOL isSetup;
-@property (nonatomic, assign) int notifyToken;
 
 + (instancetype)shared;
 - (void)install;
 - (void)uninstall;
-- (void)updateFrame;
 
 @end
 
@@ -70,82 +119,102 @@
 }
 
 // =============================================================================
-#pragma mark - 安装手势窗口
+#pragma mark - 安装
 // =============================================================================
 
 - (void)install {
-    if (![AxsConfig sharedConfig].isEnabled) return;
+    _AxsLog(@"====== GesturePro install() called ======");
+
+    BOOL enabled = [AxsConfig sharedConfig].isEnabled;
+    _AxsLog(@"Config enabled = %d", enabled);
+    if (!enabled) {
+        _AxsLog(@"Plugin disabled, abort install");
+        return;
+    }
+
     if (self.isSetup && self.gestureWindow) {
+        _AxsLog(@"Already installed, updating frame");
         [self updateFrame];
         return;
     }
 
     @try {
-        // 1. 获取状态栏 frame（从任意 keyWindow）
-        UIWindow *refWindow = nil;
         NSArray *windows = [UIApplication sharedApplication].windows;
+        _AxsLog(@"Total windows: %lu", (unsigned long)windows.count);
+
+        UIWindow *refWindow = nil;
         for (UIWindow *w in windows) {
+            _AxsLog(@"  Window: %@ key=%d level=%.0f frame=%@",
+                    NSStringFromClass([w class]), w.isKeyWindow, w.windowLevel,
+                    NSStringFromCGRect(w.frame));
             if (w.isKeyWindow) { refWindow = w; break; }
         }
+
         if (!refWindow) {
-            // 没有 keyWindow，延迟重试
+            _AxsLog(@"ERROR: No keyWindow found, retrying in 1s");
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC),
-                           dispatch_get_main_queue(), ^{
-                [[AxsGestureHandler shared] install];
-            });
+                           dispatch_get_main_queue(), ^{ [[AxsGestureHandler shared] install]; });
             return;
         }
 
         CGRect sbFrame = [self statusBarFrameFromWindow:refWindow];
+        _AxsLog(@"statusBarFrame(raw): %@", NSStringFromCGRect(sbFrame));
+
         if (CGRectIsEmpty(sbFrame) || sbFrame.size.height <= 0) {
             sbFrame = CGRectMake(0, 0, refWindow.bounds.size.width, kAxsStateBarHeight);
+            _AxsLog(@"statusBarFrame fallback: %@", NSStringFromCGRect(sbFrame));
         }
         sbFrame.origin.x = 0;
         sbFrame.origin.y = 0;
         sbFrame.size.width = refWindow.bounds.size.width;
 
-        // 2. 创建 TouchThroughWindow
+        // 创建窗口
         self.gestureWindow = [[AxsTouchThroughWindow alloc] initWithFrame:sbFrame];
         self.gestureWindow.windowLevel = UIWindowLevelStatusBar + 1;
         self.gestureWindow.backgroundColor = [UIColor clearColor];
         self.gestureWindow.userInteractionEnabled = YES;
         self.gestureWindow.hidden = NO;
-        self.gestureWindow.gestureTarget = self;
 
         if (@available(iOS 13.0, *)) {
             self.gestureWindow.windowScene = refWindow.windowScene;
         }
 
-        // 3. 添加手势识别器
-        [self setupGestureRecognizers];
+        _AxsLog(@"GestureWindow created: frame=%@ level=%.0f",
+                NSStringFromCGRect(sbFrame), self.gestureWindow.windowLevel);
 
-        // 4. 注册通知
-        [self registerNotify];
+        [self setupGestureRecognizers];
+        [self registerConfigObserver];
 
         self.isSetup = YES;
 
-        NSLog(@"[GesturePro] Window installed: frame=%@ level=%.0f",
-              NSStringFromCGRect(sbFrame), self.gestureWindow.windowLevel);
+        // 打印当前配置
+        _AxsLog(@"--- Gesture Config ---");
+        for (NSInteger r = 0; r < 3; r++) {
+            NSString *rn = @[@"Left", @"Island", @"Right"][r];
+            NSArray *gn = @[@"Tap", @"Double", @"Long", @"SwipeL", @"SwipeR"];
+            for (NSInteger g = 0; g < 5; g++) {
+                _AxsLog(@"  %@.%@ = %@", rn, gn[g],
+                        [[AxsConfig sharedConfig] actionForRegion:r gesture:g]);
+            }
+        }
+        _AxsLog(@"  urlLink = %@", [AxsConfig sharedConfig].urlLink);
+        _AxsLog(@"====== Install COMPLETE ======");
 
     } @catch (NSException *e) {
-        NSLog(@"[GesturePro] install error: %@", e);
+        _AxsLog(@"EXCEPTION: %@ reason: %@", e.name, e.reason);
     }
 }
 
 - (void)uninstall {
+    _AxsLog(@"GesturePro uninstall()");
     if (self.gestureWindow) {
         self.gestureWindow.hidden = YES;
         self.gestureWindow = nil;
     }
     self.isSetup = NO;
-    if (self.notifyToken != 0) {
-        notify_cancel(self.notifyToken);
-        self.notifyToken = 0;
-    }
 }
 
 - (void)updateFrame {
-    if (!self.gestureWindow) return;
     UIWindow *refWindow = nil;
     for (UIWindow *w in [UIApplication sharedApplication].windows) {
         if (w.isKeyWindow) { refWindow = w; break; }
@@ -161,42 +230,40 @@
 }
 
 // =============================================================================
-#pragma mark - 手势识别器（完全复刻 SquidGesturePro）
+#pragma mark - 手势识别器
 // =============================================================================
 
 - (void)setupGestureRecognizers {
-    // 单击
+    _AxsLog(@"Setting up gesture recognizers...");
+
     self.singleTapGR = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap:)];
     self.singleTapGR.numberOfTapsRequired = 1;
     self.singleTapGR.delegate = self;
     [self.gestureWindow addGestureRecognizer:self.singleTapGR];
 
-    // 双击
     self.doubleTapGR = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
     self.doubleTapGR.numberOfTapsRequired = 2;
     self.doubleTapGR.delegate = self;
     [self.gestureWindow addGestureRecognizer:self.doubleTapGR];
 
-    // 单击等待双击确认（关键！）
     [self.singleTapGR requireGestureRecognizerToFail:self.doubleTapGR];
 
-    // 长按
     self.longPressGR = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
     self.longPressGR.minimumPressDuration = kAxsLongPressMinDuration;
     self.longPressGR.delegate = self;
     [self.gestureWindow addGestureRecognizer:self.longPressGR];
 
-    // 左滑
     self.swipeLeftGR = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipeLeft:)];
     self.swipeLeftGR.direction = UISwipeGestureRecognizerDirectionLeft;
     self.swipeLeftGR.delegate = self;
     [self.gestureWindow addGestureRecognizer:self.swipeLeftGR];
 
-    // 右滑
     self.swipeRightGR = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipeRight:)];
     self.swipeRightGR.direction = UISwipeGestureRecognizerDirectionRight;
     self.swipeRightGR.delegate = self;
     [self.gestureWindow addGestureRecognizer:self.swipeRightGR];
+
+    _AxsLog(@"GRs added: %lu", (unsigned long)self.gestureWindow.gestureRecognizers.count);
 }
 
 // =============================================================================
@@ -207,67 +274,77 @@
     CGPoint pt = [touch locationInView:nil];
     CGFloat sw = [UIScreen mainScreen].bounds.size.width;
     CGFloat ratio = pt.x / sw;
-    if (ratio < kAxsRegionLeftRatio)       self.currentTouchRegion = AxsStatusBarRegionLeft;
-    else if (ratio > kAxsRegionRightRatio) self.currentTouchRegion = AxsStatusBarRegionRight;
-    else                                   self.currentTouchRegion = AxsStatusBarRegionIsland;
 
-    // 检查该区域手势是否启用
-    return [AxsConfig sharedConfig].isEnabled;
+    if (ratio < kAxsRegionLeftRatio)
+        self.currentTouchRegion = AxsStatusBarRegionLeft;
+    else if (ratio > kAxsRegionRightRatio)
+        self.currentTouchRegion = AxsStatusBarRegionRight;
+    else
+        self.currentTouchRegion = AxsStatusBarRegionIsland;
+
+    _AxsLog(@"Touch (%.0f, %.0f) ratio=%.3f region=%ld",
+            pt.x, pt.y, ratio, (long)self.currentTouchRegion);
+
+    return YES;
 }
 
 // =============================================================================
-#pragma mark - 手势回调 → 执行动作
+#pragma mark - 手势回调
 // =============================================================================
 
 - (void)handleSingleTap:(UITapGestureRecognizer *)gr {
     if (gr.state != UIGestureRecognizerStateEnded) return;
-    NSLog(@"[GesturePro] SingleTap region=%ld", (long)self.currentTouchRegion);
+    NSString *a = [[AxsConfig sharedConfig] actionForRegion:self.currentTouchRegion gesture:AxsGestureTypeTap];
+    _AxsLog(@">>> SingleTap region=%ld action=%@", (long)self.currentTouchRegion, a);
     [AxsActionExecutor executeActionForRegion:self.currentTouchRegion gesture:AxsGestureTypeTap];
 }
 
 - (void)handleDoubleTap:(UITapGestureRecognizer *)gr {
     if (gr.state != UIGestureRecognizerStateEnded) return;
-    NSLog(@"[GesturePro] DoubleTap region=%ld", (long)self.currentTouchRegion);
+    NSString *a = [[AxsConfig sharedConfig] actionForRegion:self.currentTouchRegion gesture:AxsGestureTypeDoubleTap];
+    _AxsLog(@">>> DoubleTap region=%ld action=%@", (long)self.currentTouchRegion, a);
     [AxsActionExecutor executeActionForRegion:self.currentTouchRegion gesture:AxsGestureTypeDoubleTap];
 }
 
 - (void)handleLongPress:(UILongPressGestureRecognizer *)gr {
     if (gr.state != UIGestureRecognizerStateBegan) return;
-    NSLog(@"[GesturePro] LongPress region=%ld", (long)self.currentTouchRegion);
+    NSString *a = [[AxsConfig sharedConfig] actionForRegion:self.currentTouchRegion gesture:AxsGestureTypeLongPress];
+    _AxsLog(@">>> LongPress region=%ld action=%@", (long)self.currentTouchRegion, a);
     [AxsActionExecutor executeActionForRegion:self.currentTouchRegion gesture:AxsGestureTypeLongPress];
 }
 
 - (void)handleSwipeLeft:(UISwipeGestureRecognizer *)gr {
     if (gr.state != UIGestureRecognizerStateEnded) return;
-    NSLog(@"[GesturePro] SwipeLeft region=%ld", (long)self.currentTouchRegion);
+    NSString *a = [[AxsConfig sharedConfig] actionForRegion:self.currentTouchRegion gesture:AxsGestureTypeSwipeLeft];
+    _AxsLog(@">>> SwipeLeft region=%ld action=%@", (long)self.currentTouchRegion, a);
     [AxsActionExecutor executeActionForRegion:self.currentTouchRegion gesture:AxsGestureTypeSwipeLeft];
 }
 
 - (void)handleSwipeRight:(UISwipeGestureRecognizer *)gr {
     if (gr.state != UIGestureRecognizerStateEnded) return;
-    NSLog(@"[GesturePro] SwipeRight region=%ld", (long)self.currentTouchRegion);
+    NSString *a = [[AxsConfig sharedConfig] actionForRegion:self.currentTouchRegion gesture:AxsGestureTypeSwipeRight];
+    _AxsLog(@">>> SwipeRight region=%ld action=%@", (long)self.currentTouchRegion, a);
     [AxsActionExecutor executeActionForRegion:self.currentTouchRegion gesture:AxsGestureTypeSwipeRight];
 }
 
 // =============================================================================
-#pragma mark - 通知监听
+#pragma mark - CFNotificationCenter 监听（iOS 16 兼容）
 // =============================================================================
 
-- (void)registerNotify {
-    __weak typeof(self) weakSelf = self;
-    self.notifyToken = 0;
-    notify_register_dispatch("com.axs.gesturepro.prefs-changed", &_notifyToken,
-        dispatch_get_main_queue(), ^(int t) {
-            __strong typeof(weakSelf) self = weakSelf;
-            if (!self) return;
-            if ([AxsConfig sharedConfig].isEnabled) {
-                if (!self.gestureWindow) {
-                    [self install];
-                }
-            } else {
-                [self uninstall];
-            }
-        });
+- (void)registerConfigObserver {
+    static BOOL registered = NO;
+    if (registered) return;
+    registered = YES;
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)self,
+        PrefsChangedCallback,
+        CFSTR("com.axs.gesturepro.prefs-changed"),
+        NULL,
+        CFNotificationSuspensionBehaviorDeliverImmediately
+    );
+    _AxsLog(@"CFNotificationCenter observer registered");
 }
 
 // =============================================================================
@@ -275,12 +352,10 @@
 // =============================================================================
 
 - (CGRect)statusBarFrameFromWindow:(UIWindow *)window {
-    // 方式1: UIWindow statusBarFrame
     if ([window respondsToSelector:@selector(statusBarFrame)]) {
         NSValue *v = [window valueForKey:@"statusBarFrame"];
         if (v) return [v CGRectValue];
     }
-    // 方式2: UIWindowScene.statusBarManager
     if (@available(iOS 13.0, *)) {
         UIWindowScene *scene = window.windowScene;
         if (scene) {
@@ -304,6 +379,7 @@
 
 - (void)applicationDidFinishLaunching:(id)arg1 {
     %orig;
+    _AxsLog(@"====== SpringBoard applicationDidFinishLaunching ======");
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -313,6 +389,7 @@
             addObserverForName:UIApplicationDidBecomeActiveNotification
             object:nil queue:[NSOperationQueue mainQueue]
             usingBlock:^(NSNotification *n) {
+                _AxsLog(@"App became active, reinstalling...");
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                                dispatch_get_main_queue(), ^{
                     [[AxsGestureHandler shared] install];
@@ -330,5 +407,6 @@
 %ctor {
     @autoreleasepool {
         [[AxsConfig sharedConfig] registerDefaults];
+        _AxsLog(@"====== GesturePro %%ctor: defaults registered ======");
     }
 }

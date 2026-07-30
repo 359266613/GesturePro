@@ -1,6 +1,6 @@
 #import "GestureProRootListController.h"
 #import <Preferences/PSSpecifier.h>
-#import <notify.h>
+#import <CoreFoundation/CoreFoundation.h>
 
 static NSString * const kDomain = @"com.axs.gesturepro";
 
@@ -77,7 +77,11 @@ static NSString * const kDomain = @"com.axs.gesturepro";
     [d synchronize];
 
     // 任何配置变更都通知 SpringBoard 端重新加载
-    notify_post("com.axs.gesturepro.prefs-changed");
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR("com.axs.gesturepro.prefs-changed"),
+        NULL, NULL, YES
+    );
 }
 
 // =============================================================================
