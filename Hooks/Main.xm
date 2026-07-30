@@ -3,6 +3,7 @@
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <notify.h>
 #import "AxsPrivate.h"
 #import "AxsConfig.h"
 #import "AxsGestureRecognizer.h"
@@ -13,7 +14,7 @@
 // =============================================================================
 
 // 关联对象 key（标记覆盖视图已添加）
-static const char kAxsOverlayKey;
+static char kAxsOverlayKey;
 
 @interface AxsOverlayManager : NSObject <AxsGestureRecognizerDelegate>
 + (instancetype)sharedManager;
