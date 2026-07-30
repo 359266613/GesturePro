@@ -40,14 +40,6 @@ static NSArray *kActionValues(void) {
               @"screenshot", @"shellcommand", @"shortcut", @"silenttoggle", @"siri" ];
 }
 
-static NSArray *kActionTitles(void) {
-    NSMutableArray *titles = [NSMutableArray array];
-    for (NSString *val in kActionValues()) {
-        [titles addObject:kActionMap()[val] ?: val];
-    }
-    return [titles copy];
-}
-
 // =============================================================================
 #pragma mark - GestureProRootListController
 // =============================================================================
