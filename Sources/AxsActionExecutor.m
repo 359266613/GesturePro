@@ -2,6 +2,9 @@
 #import "AxsConfig.h"
 #import "AxsPrivate.h"
 #import <UIKit/UIKit.h>
+#import <spawn.h>
+
+extern char **environ;
 
 // =============================================================================
 #pragma mark - AxsActionExecutor 实现
@@ -254,16 +257,20 @@
     return nil;
 }
 
-// 执行 Shell 命令
+// 执行 Shell 命令（使用 posix_spawn，iOS 无 NSTask）
 + (void)runShellCommand:(NSString *)command args:(NSArray<NSString *> * _Nullable)args {
-    NSTask *task = [[NSTask alloc] init];
-    [task setLaunchPath:command];
-    if (args) [task setArguments:args];
-    @try {
-        [task launch];
-    } @catch (NSException *exception) {
-        // Shell 命令执行失败
-    }
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        pid_t pid;
+        NSUInteger argCount = args ? [args count] : 0;
+        char **argv = malloc(sizeof(char *) * (argCount + 2));
+        argv[0] = (char *)[command UTF8String];
+        for (NSUInteger i = 0; i < argCount; i++) {
+            argv[i + 1] = (char *)[args[i] UTF8String];
+        }
+        argv[argCount + 1] = NULL;
+        posix_spawn(&pid, argv[0], NULL, NULL, argv, environ);
+        free(argv);
+    });
 }
 
 // 切换手电筒（AVFoundation 兜底）
@@ -277,7 +284,15 @@
 
     BOOL torchOn = [[captureDevice valueForKey:@"torchMode"] integerValue] == 1; // AVCaptureTorchModeOn = 1
     NSError *err = nil;
-    [captureDevice performSelector:@selector(lockForConfiguration:) withObject:&err];
+    // 使用 NSInvocation 代替 performSelector，避免 ARC 下 NSError ** 类型不兼容
+    NSMethodSignature *lockSig = [captureDevice methodSignatureForSelector:@selector(lockForConfiguration:)];
+    if (lockSig) {
+        NSInvocation *lockInv = [NSInvocation invocationWithMethodSignature:lockSig];
+        [lockInv setTarget:captureDevice];
+        [lockInv setSelector:@selector(lockForConfiguration:)];
+        [lockInv setArgument:&err atIndex:2];
+        [lockInv invoke];
+    }
     if (err) return;
     if ([captureDevice respondsToSelector:@selector(setTorchMode:)]) {
         [captureDevice performSelector:@selector(setTorchMode:) withObject:@(torchOn ? 0 : 1)];

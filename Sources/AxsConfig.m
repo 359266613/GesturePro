@@ -60,11 +60,6 @@ static AxsConfig *_shared = nil;
     return _shared;
 }
 
-// 调整：改用共享缓存实例，避免每次属性访问都新建 NSUserDefaults 对象
-static AxsConfig *Shared(void) {
-    return [AxsConfig sharedConfig];
-}
-
 // =============================================================================
 #pragma mark - 默认值持久化
 // =============================================================================
