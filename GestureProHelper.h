@@ -15,7 +15,7 @@ FOUNDATION_EXPORT NSString *const AGDirectionPortraitUpsideDown;
 FOUNDATION_EXPORT NSString *const AGDirectionLandscapeLeft;
 FOUNDATION_EXPORT NSString *const AGDirectionLandscapeRight;
 
-@interface GestureProHelper : NSObject
+@interface ActionGestureHelper : NSObject
 
 @property (nonatomic, copy) NSString *currentGesture;
 @property (nonatomic, copy) NSString *currentDirection;
