@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>items</key>
+    <array>
+        <!-- ===== 基本设置 ===== -->
+        <dict>
+            <key>cell</key> <string>PSGroupCell</string>
+            <key>label</key> <string>基本设置</string>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSSwitchCell</string>
+            <key>default</key> <false/>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>enabled</string>
+            <key>label</key> <string>启用插件</string>
+        </dict>
+
+        <!-- ===== 状态栏左侧区域 ===== -->
+        <dict>
+            <key>cell</key> <string>PSGroupCell</string>
+            <key>label</key> <string>状态栏 — 左侧区域</string>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.left.tap</string>
+            <key>label</key> <string>单击</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.left.double</string>
+            <key>label</key> <string>双击</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.left.long</string>
+            <key>label</key> <string>长按</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.left.swipeLeft</string>
+            <key>label</key> <string>左滑</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.left.swipeRight</string>
+            <key>label</key> <string>右滑</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+
+        <!-- ===== 灵动岛区域 ===== -->
+        <dict>
+            <key>cell</key> <string>PSGroupCell</string>
+            <key>label</key> <string>状态栏 — 灵动岛区域</string>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.island.tap</string>
+            <key>label</key> <string>单击</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.island.double</string>
+            <key>label</key> <string>双击</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.island.long</string>
+            <key>label</key> <string>长按</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.island.swipeLeft</string>
+            <key>label</key> <string>左滑</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.island.swipeRight</string>
+            <key>label</key> <string>右滑</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+
+        <!-- ===== 状态栏右侧区域 ===== -->
+        <dict>
+            <key>cell</key> <string>PSGroupCell</string>
+            <key>label</key> <string>状态栏 — 右侧区域</string>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.right.tap</string>
+            <key>label</key> <string>单击</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.right.double</string>
+            <key>label</key> <string>双击</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.right.long</string>
+            <key>label</key> <string>长按</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.right.swipeLeft</string>
+            <key>label</key> <string>左滑</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSLinkListCell</string>
+            <key>detail</key> <string>PSListItemsController</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>statusbar.right.swipeRight</string>
+            <key>label</key> <string>右滑</string>
+            <key>validTitles</key> <array><string>无</string><string>截图</string><string>锁屏</string><string>主屏幕</string><string>多任务切换</string><string>控制中心</string><string>通知中心</string><string>手电筒</string><string>静音切换</string><string>Siri</string><string>旋转锁定</string><string>注销 (Respring)</string><string>安全模式</string><string>重启</string><string>打开 App</string><string>快捷指令</string><string>Shell 命令</string></array>
+            <key>validValues</key> <array><string>none</string><string>screenshot</string><string>lockscreen</string><string>homescreen</string><string>appswitcher</string><string>controlcenter</string><string>notificationcenter</string><string>flashlight</string><string>silenttoggle</string><string>siri</string><string>rotationlock</string><string>respring</string><string>safemode</string><string>reboot</string><string>openapp</string><string>shortcut</string><string>shellcommand</string></array>
+        </dict>
+
+        <!-- ===== 额外参数 ===== -->
+        <dict>
+            <key>cell</key> <string>PSGroupCell</string>
+            <key>label</key> <string>额外参数</string>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSEditTextCell</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>openAppBundleID</string>
+            <key>label</key> <string>打开 App (Bundle ID)</string>
+            <key>placeholder</key> <string>例: com.apple.mobilesafari</string>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSEditTextCell</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>shortcutName</string>
+            <key>label</key> <string>快捷指令名称</string>
+            <key>placeholder</key> <string>例: 我的快捷指令</string>
+        </dict>
+        <dict>
+            <key>cell</key> <string>PSEditTextCell</string>
+            <key>defaults</key> <string>com.axs.gesturepro</string>
+            <key>key</key> <string>shellCommand</string>
+            <key>label</key> <string>Shell 命令</string>
+            <key>placeholder</key> <string>例: echo hello</string>
+        </dict>
+    </array>
+    <key>title</key> <string>GesturePro</string>
+</dict>
+</plist>

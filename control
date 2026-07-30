@@ -1,11 +1,15 @@
 Package: com.axs.gesturepro
 Name: GesturePro
-Version: 5.2.0
+Version: 6.0.0
 Architecture: iphoneos-arm
-Description: 这是有款自定义手势操作插件
+Description: iOS 状态栏手势插件，支持左/灵动岛/右三区域自定义手势动作。
+ * 1.状态栏左/灵动岛/右三区域独立手势配置
+ * 2.每区域支持单击、双击、长按、左滑、右滑五种手势
+ * 3.15+ 系统动作：截图、锁屏、主屏幕、多任务、控制中心等
+ * 4.兼容 iOS 16+/Dopamine Rootless/arm64
 Maintainer: Axs
 Author: Axs
 Section: Axs-Tweaks
-Depends: mobilesubstrate
+Depends: mobilesubstrate, preferenceloader
 Icon: https://axs66.github.io/pro/icon/gesturepro.png
 Sileodepiction: https://axs66.github.io/pro/sileodepiction/gesturepro/js.json

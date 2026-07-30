@@ -27,6 +27,8 @@ jobs:
         include:
           - build_variant: rootless
             package_scheme: rootless
+          - build_variant: roothide
+            package_scheme: roothide
 
     steps:
     - name: Setup Xcode
@@ -46,7 +48,7 @@ jobs:
     - name: Bump Package Version
       id: bump
       run: |
-        VERSION_PREFIX="5.2.0"
+        VERSION_PREFIX="6.0.0"
         VERSION="${VERSION_PREFIX}-${{ github.run_number }}"
         echo "Using version: $VERSION"
         sed -i '' "s/^Version: .*/Version: ${VERSION}/" control
