@@ -76,10 +76,8 @@ static NSString * const kDomain = @"com.axs.gesturepro";
     }
     [d synchronize];
 
-    // 如果切换了启用开关，发送通知让 SpringBoard 端感知
-    if ([k isEqualToString:@"enabled"]) {
-        notify_post("com.axs.gesturepro.enabled-changed");
-    }
+    // 任何配置变更都通知 SpringBoard 端重新加载
+    notify_post("com.axs.gesturepro.prefs-changed");
 }
 
 // =============================================================================

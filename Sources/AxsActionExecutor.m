@@ -53,6 +53,8 @@ extern char **environ;
             [self performShortcut];
         } else if ([action isEqualToString:kAxsActionShellCommand]) {
             [self performShellCommand];
+        } else if ([action isEqualToString:kAxsActionOpenURL]) {
+            [self performOpenURL];
         }
     });
 }
@@ -242,6 +244,101 @@ extern char **environ;
     if (command.length == 0) return;
 
     [self runShellCommand:@"/bin/sh" args:@[@"-c", command]];
+}
+
++ (void)performOpenURL {
+    AxsConfig *cfg = [AxsConfig sharedConfig];
+    NSString *link = cfg.urlLink;
+    if (link.length == 0) return;
+
+    // 支持多种 URL 格式：
+    // 1. Prefs:root=TWEAKS_CELL        → 跳转设置面板指定页
+    // 2. https://... / http://...       → 网页
+    // 3. scheme://...                    → App URL Scheme
+    // 4. 普通 URL 字符串
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 如果是 Prefs: 开头的设置页面跳转
+        if ([link hasPrefix:@"Prefs:"]) {
+            [self openPreferencesURL:link];
+            return;
+        }
+
+        // 通用 URL scheme / http 链接
+        NSURL *url = [NSURL URLWithString:link];
+        if (!url) {
+            NSString *encoded = [link stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLFragmentAllowedCharacterSet];
+            url = [NSURL URLWithString:encoded];
+        }
+
+        if (url) {
+            // 优先使用 LSApplicationWorkspace（SpringBoard 进程内更可靠）
+            Class workspace = NSClassFromString(@"LSApplicationWorkspace");
+            if ([workspace respondsToSelector:@selector(defaultWorkspace)]) {
+                id ws = [workspace performSelector:@selector(defaultWorkspace)];
+                SEL openSensitive = NSSelectorFromString(@"openSensitiveURL:withOptions:");
+                if ([ws respondsToSelector:openSensitive]) {
+                    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:
+                        [ws methodSignatureForSelector:openSensitive]];
+                    [inv setSelector:openSensitive];
+                    [inv setTarget:ws];
+                    [inv setArgument:&url atIndex:2];
+                    id options = nil;
+                    [inv setArgument:&options atIndex:3];
+                    [inv invoke];
+                    return;
+                }
+            }
+
+            // 兜底：UIApplication openURL
+            [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+        }
+    });
+}
+
+// 处理 Prefs: 开头的系统设置跳转（如 Prefs:root=TWEAKS_CELL）
++ (void)openPreferencesURL:(NSString *)link {
+    // 将 Prefs: 转为 App-Prefs: URL scheme
+    NSString *schemeURL = [NSString stringWithFormat:@"App-Prefs:%@", [link substringFromIndex:6]];
+    NSURL *url = [NSURL URLWithString:schemeURL];
+    if (!url) return;
+
+    // 方式1：通过 LSApplicationWorkspace 打开（SpringBoard 进程内最可靠的方式）
+    Class workspace = NSClassFromString(@"LSApplicationWorkspace");
+    if ([workspace respondsToSelector:@selector(defaultWorkspace)]) {
+        id ws = [workspace performSelector:@selector(defaultWorkspace)];
+
+        // 尝试 openSensitiveURL:withOptions:
+        SEL openSensitive = NSSelectorFromString(@"openSensitiveURL:withOptions:");
+        if ([ws respondsToSelector:openSensitive]) {
+            NSMethodSignature *sig = [ws methodSignatureForSelector:openSensitive];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setSelector:openSensitive];
+            [inv setTarget:ws];
+            [inv setArgument:&url atIndex:2];
+            id opts = nil;
+            [inv setArgument:&opts atIndex:3];
+            [inv invoke];
+            return;
+        }
+
+        // 尝试 openURL:withOptions:
+        SEL openURLSel = NSSelectorFromString(@"openURL:withOptions:");
+        if ([ws respondsToSelector:openURLSel]) {
+            NSMethodSignature *sig = [ws methodSignatureForSelector:openURLSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setSelector:openURLSel];
+            [inv setTarget:ws];
+            [inv setArgument:&url atIndex:2];
+            id opts = nil;
+            [inv setArgument:&opts atIndex:3];
+            [inv invoke];
+            return;
+        }
+    }
+
+    // 兜底：UIApplication openURL
+    [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
 }
 
 // =============================================================================

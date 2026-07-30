@@ -89,6 +89,7 @@ static AxsConfig *_shared = nil;
     if (![d objectForKey:@"openAppBundleID"]) { [d setObject:@"" forKey:@"openAppBundleID"]; needsSync = YES; }
     if (![d objectForKey:@"shortcutName"])    { [d setObject:@"" forKey:@"shortcutName"]; needsSync = YES; }
     if (![d objectForKey:@"shellCommand"])    { [d setObject:@"" forKey:@"shellCommand"]; needsSync = YES; }
+    if (![d objectForKey:@"urlLink"])         { [d setObject:@"" forKey:@"urlLink"]; needsSync = YES; }
 
     if (needsSync) [d synchronize];
 }
@@ -138,6 +139,7 @@ static AxsConfig *_shared = nil;
 - (NSString *)openAppBundleID  { return StrVal([AxsPrefs() objectForKey:@"openAppBundleID"], @""); }
 - (NSString *)shortcutName     { return StrVal([AxsPrefs() objectForKey:@"shortcutName"], @""); }
 - (NSString *)shellCommand     { return StrVal([AxsPrefs() objectForKey:@"shellCommand"], @""); }
+- (NSString *)urlLink          { return StrVal([AxsPrefs() objectForKey:@"urlLink"], @""); }
 
 // =============================================================================
 #pragma mark - 区域+手势 → 动作映射

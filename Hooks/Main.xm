@@ -33,14 +33,23 @@ static char kAxsOverlayKey;
     return manager;
 }
 
-// 查找 UIStatusBarWindow（iOS 16）
-// 仅通过窗口类名遍历，不使用 _statusBarWindow KVC（该属性在启动早期会抛 NSException 导致 crash）
+// 查找状态栏窗口（iOS 16 兼容多种类名）
+// 不使用 _statusBarWindow KVC（启动早期会抛 NSException 导致 crash）
 - (UIWindow *)statusBarWindow {
     @try {
-        for (UIWindow *window in [UIApplication sharedApplication].windows) {
+        NSArray *windows = [UIApplication sharedApplication].windows;
+        // 第一轮：匹配已知的状态栏窗口类名
+        for (UIWindow *window in windows) {
             NSString *className = NSStringFromClass([window class]);
             if ([className isEqualToString:@"UIStatusBarWindow"] ||
-                [className isEqualToString:@"_UIStatusBarWindow"]) {
+                [className isEqualToString:@"_UIStatusBarWindow"] ||
+                [className isEqualToString:@"UIApplicationStatusBarWindow"]) {
+                return window;
+            }
+        }
+        // 第二轮回退：找 keyWindow（部分设备状态栏渲染在 keyWindow 上）
+        for (UIWindow *window in windows) {
+            if (window.isKeyWindow && window.windowLevel >= UIWindowLevelNormal) {
                 return window;
             }
         }
@@ -60,11 +69,25 @@ static char kAxsOverlayKey;
         }
 
         UIWindow *sbWindow = [self statusBarWindow];
-        if (!sbWindow) return;
+        if (!sbWindow) {
+            // 状态栏窗口尚未创建，延迟 0.5s 重试
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
+            });
+            return;
+        }
 
         // 检查是否已经添加了覆盖视图（通过关联对象）
         AxsGestureRecognizer *existingOverlay = objc_getAssociatedObject(sbWindow, &kAxsOverlayKey);
-        if (existingOverlay) return; // 已存在
+        if (existingOverlay) {
+            // 视图已存在，确保在窗口最上层可接收触摸
+            if (existingOverlay.superview != sbWindow) {
+                [sbWindow addSubview:existingOverlay];
+            }
+            [sbWindow bringSubviewToFront:existingOverlay];
+            return;
+        }
 
         // 获取状态栏框架
         CGRect statusBarFrame = sbWindow.bounds;
@@ -80,18 +103,23 @@ static char kAxsOverlayKey;
         CGFloat height = MAX(statusBarFrame.size.height, kAxsStateBarHeight);
         statusBarFrame.size.height = height;
         statusBarFrame.origin.y = 0;
+        statusBarFrame.origin.x = 0;
+        statusBarFrame.size.width = sbWindow.bounds.size.width;
 
         // 创建透明覆盖视图
         AxsGestureRecognizer *overlay = [[AxsGestureRecognizer alloc] initWithFrame:statusBarFrame];
         overlay.delegate = self;
         overlay.backgroundColor = [UIColor clearColor];
+        overlay.userInteractionEnabled = YES;
         overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
         [sbWindow addSubview:overlay];
+        // 关键：将覆盖视图置于窗口最顶层，确保触摸事件不被其他视图遮挡
+        [sbWindow bringSubviewToFront:overlay];
         objc_setAssociatedObject(sbWindow, &kAxsOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
-        // 监听启用状态变化通知
-        [self registerEnableObserver];
+        // 监听设置变更通知
+        [self registerConfigObserver];
     } @catch (NSException *e) {
         // 整体异常保护，避免 SpringBoard crash
     }
@@ -113,15 +141,15 @@ static char kAxsOverlayKey;
     }
 }
 
-// 监听 notify_post 通知（设置面板切换启用状态时发送）
-- (void)registerEnableObserver {
+// 监听 notify_post 通知（设置面板变更时重新加载配置）
+- (void)registerConfigObserver {
     static BOOL registered = NO;
     if (registered) return;
     registered = YES;
 
     dispatch_async(dispatch_get_main_queue(), ^{
         int token = 0;
-        notify_register_dispatch("com.axs.gesturepro.enabled-changed", &token,
+        notify_register_dispatch("com.axs.gesturepro.prefs-changed", &token,
             dispatch_get_main_queue(), ^(int t) {
                 if ([AxsConfig sharedConfig].enabled) {
                     [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
@@ -148,7 +176,6 @@ static char kAxsOverlayKey;
 
 %hook SpringBoard
 
-// 应用启动完成后，添加状态栏手势覆盖视图
 - (void)applicationDidFinishLaunching:(id)arg1 {
     %orig;
 
@@ -159,11 +186,14 @@ static char kAxsOverlayKey;
 
         // 监听应用进入前台，状态栏窗口可能会重新创建
         [[NSNotificationCenter defaultCenter]
-            addObserverForName:@"UIApplicationDidBecomeActiveNotification"
+            addObserverForName:UIApplicationDidBecomeActiveNotification
             object:nil
-            queue:NSOperationQueue.mainQueue
+            queue:[NSOperationQueue mainQueue]
             usingBlock:^(NSNotification *note) {
-                [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
+                               dispatch_get_main_queue(), ^{
+                    [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
+                });
             }];
     });
 }

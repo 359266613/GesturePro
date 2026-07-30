@@ -35,6 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSString *openAppBundleID;    // 打开App：Bundle ID
 @property (nonatomic, readonly, copy) NSString *shortcutName;       // 快捷指令：名称
 @property (nonatomic, readonly, copy) NSString *shellCommand;       // Shell：命令文本
+@property (nonatomic, readonly, copy) NSString *urlLink;            // 打开URL：链接字符串（支持 Prefs: / http:// / scheme://）
 
 // 首次安装持久化默认值（不覆盖已有值）
 - (void)registerDefaults;

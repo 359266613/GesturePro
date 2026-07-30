@@ -61,6 +61,7 @@ typedef NS_ENUM(NSInteger, AxsStatusBarRegion) {
 #define kAxsActionOpenApp          @"openapp"
 #define kAxsActionShortcut         @"shortcut"
 #define kAxsActionShellCommand     @"shellcommand"
+#define kAxsActionOpenURL          @"openurl"
 
 // 状态栏区域宽度比例
 #define kAxsRegionLeftRatio     0.333
