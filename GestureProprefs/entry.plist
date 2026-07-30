@@ -1,7 +1,0 @@
-{
-    bundle = "GestureProPrefs";
-    cell = PSLinkCell;
-    icon = "/Library/PreferenceBundles/GestureProPrefs.bundle/icon@2x.png";
-    isController = 1;
-    label = "GesturePro";
-}
