@@ -34,75 +34,82 @@ static char kAxsOverlayKey;
 }
 
 // 查找 UIStatusBarWindow（iOS 16）
+// 仅通过窗口类名遍历，不使用 _statusBarWindow KVC（该属性在启动早期会抛 NSException 导致 crash）
 - (UIWindow *)statusBarWindow {
-    // 遍历所有窗口，查找 UIStatusBarWindow 类型的窗口
-    for (UIWindow *window in [UIApplication sharedApplication].windows) {
-        if ([NSStringFromClass([window class]) isEqualToString:@"UIStatusBarWindow"] ||
-            [NSStringFromClass([window class]) isEqualToString:@"_UIStatusBarWindow"]) {
-            return window;
+    @try {
+        for (UIWindow *window in [UIApplication sharedApplication].windows) {
+            NSString *className = NSStringFromClass([window class]);
+            if ([className isEqualToString:@"UIStatusBarWindow"] ||
+                [className isEqualToString:@"_UIStatusBarWindow"]) {
+                return window;
+            }
         }
-    }
-    // 某些 iOS 16 版本通过 UIApplication._statusBarWindow 访问
-    UIApplication *app = [UIApplication sharedApplication];
-    if ([app respondsToSelector:@selector(valueForKey:)]) {
-        id statusBarWindow = [app valueForKey:@"_statusBarWindow"];
-        if ([statusBarWindow isKindOfClass:UIWindow.class]) {
-            return (UIWindow *)statusBarWindow;
-        }
+    } @catch (NSException *e) {
+        // SpringBoard 尚未完全初始化时 .windows 可能抛异常，安全忽略
     }
     return nil;
 }
 
 // 添加覆盖视图到状态栏窗口
 - (void)ensureOverlayInstalled {
-    // 检查是否启用
-    if (![AxsConfig sharedConfig].enabled) {
-        [self removeOverlayIfNeeded];
-        return;
+    @try {
+        // 检查是否启用
+        if (![AxsConfig sharedConfig].enabled) {
+            [self removeOverlayIfNeeded];
+            return;
+        }
+
+        UIWindow *sbWindow = [self statusBarWindow];
+        if (!sbWindow) return;
+
+        // 检查是否已经添加了覆盖视图（通过关联对象）
+        AxsGestureRecognizer *existingOverlay = objc_getAssociatedObject(sbWindow, &kAxsOverlayKey);
+        if (existingOverlay) return; // 已存在
+
+        // 获取状态栏框架
+        CGRect statusBarFrame = sbWindow.bounds;
+        @try {
+            if ([sbWindow respondsToSelector:@selector(statusBarFrame)]) {
+                statusBarFrame = [[sbWindow valueForKey:@"statusBarFrame"] CGRectValue];
+            }
+        } @catch (NSException *e) {
+            statusBarFrame = sbWindow.bounds;
+        }
+
+        // 调整：在 iPhone 14 Pro 上状态栏高度为 54pt，确保覆盖整个状态栏区域
+        CGFloat height = MAX(statusBarFrame.size.height, kAxsStateBarHeight);
+        statusBarFrame.size.height = height;
+        statusBarFrame.origin.y = 0;
+
+        // 创建透明覆盖视图
+        AxsGestureRecognizer *overlay = [[AxsGestureRecognizer alloc] initWithFrame:statusBarFrame];
+        overlay.delegate = self;
+        overlay.backgroundColor = [UIColor clearColor];
+        overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+
+        [sbWindow addSubview:overlay];
+        objc_setAssociatedObject(sbWindow, &kAxsOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+        // 监听启用状态变化通知
+        [self registerEnableObserver];
+    } @catch (NSException *e) {
+        // 整体异常保护，避免 SpringBoard crash
     }
-
-    UIWindow *sbWindow = [self statusBarWindow];
-    if (!sbWindow) return;
-
-    // 检查是否已经添加了覆盖视图（通过关联对象）
-    AxsGestureRecognizer *existingOverlay = objc_getAssociatedObject(sbWindow, &kAxsOverlayKey);
-    if (existingOverlay) return; // 已存在
-
-    // 获取状态栏框架
-    CGRect statusBarFrame;
-    if ([sbWindow respondsToSelector:@selector(statusBarFrame)]) {
-        statusBarFrame = [[sbWindow valueForKey:@"statusBarFrame"] CGRectValue];
-    } else {
-        statusBarFrame = sbWindow.bounds;
-    }
-
-    // 调整：在 iPhone 14 Pro 上状态栏高度为 54pt，确保覆盖整个状态栏区域
-    CGFloat height = MAX(statusBarFrame.size.height, kAxsStateBarHeight);
-    statusBarFrame.size.height = height;
-    statusBarFrame.origin.y = 0;
-
-    // 创建透明覆盖视图
-    AxsGestureRecognizer *overlay = [[AxsGestureRecognizer alloc] initWithFrame:statusBarFrame];
-    overlay.delegate = self;
-    overlay.backgroundColor = [UIColor clearColor]; // 完全透明
-    overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-
-    [sbWindow addSubview:overlay];
-    objc_setAssociatedObject(sbWindow, &kAxsOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-    // 监听启用状态变化通知
-    [self registerEnableObserver];
 }
 
 // 移除覆盖视图
 - (void)removeOverlayIfNeeded {
-    UIWindow *sbWindow = [self statusBarWindow];
-    if (!sbWindow) return;
+    @try {
+        UIWindow *sbWindow = [self statusBarWindow];
+        if (!sbWindow) return;
 
-    AxsGestureRecognizer *overlay = objc_getAssociatedObject(sbWindow, &kAxsOverlayKey);
-    if (overlay) {
-        [overlay removeFromSuperview];
-        objc_setAssociatedObject(sbWindow, &kAxsOverlayKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        AxsGestureRecognizer *overlay = objc_getAssociatedObject(sbWindow, &kAxsOverlayKey);
+        if (overlay) {
+            [overlay removeFromSuperview];
+            objc_setAssociatedObject(sbWindow, &kAxsOverlayKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    } @catch (NSException *e) {
+        // 整体异常保护
     }
 }
 
@@ -145,8 +152,8 @@ static char kAxsOverlayKey;
 - (void)applicationDidFinishLaunching:(id)arg1 {
     %orig;
 
-    // 延迟一点安装覆盖视图，确保 UIStatusBarWindow 已创建
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+    // 延迟安装覆盖视图，确保 UIStatusBarWindow 已创建
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
 
