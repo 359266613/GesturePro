@@ -8,7 +8,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = GesturePro
 
 GesturePro_FILES = Hooks/Main.xm Sources/AxsConfig.m Sources/AxsGestureRecognizer.m Sources/AxsActionExecutor.m
-GesturePro_CFLAGS = -fobjc-arc -Wno-error -Wno-deprecated-declarations -I./Headers
+GesturePro_CFLAGS = -fobjc-arc -Wno-error -Wno-deprecated-declarations -I./Headers -I./Sources
 GesturePro_FRAMEWORKS = UIKit Foundation CoreMotion
 
 include $(THEOS_MAKE_PATH)/tweak.mk

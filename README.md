@@ -53,6 +53,4 @@ make package
 | `com.axs.gesturepro_*_iphoneos-arm64.deb` | rootless |
 | `com.axs.gesturepro_*_iphoneos-arm64e.deb` | RootHide |
 
-## v6.0 重构说明
 
-此版本将 GesturePro 从 iOS 17 操作按钮插件完全重写为 iOS 16 通用状态栏手势插件。旧版操作按钮功能不再保留。
