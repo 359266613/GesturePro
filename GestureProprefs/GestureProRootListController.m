@@ -4,42 +4,6 @@
 
 static NSString * const kDomain = @"com.axs.gesturepro";
 
-// 动作列表（标识符 → 中文名称）
-static NSDictionary *kActionMap(void) {
-    static NSDictionary *map;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        map = @{
-            @"none":                @"无",
-            @"screenshot":          @"截图",
-            @"lockscreen":          @"锁屏",
-            @"homescreen":          @"主屏幕",
-            @"appswitcher":         @"多任务切换",
-            @"controlcenter":       @"控制中心",
-            @"notificationcenter":  @"通知中心",
-            @"flashlight":          @"手电筒",
-            @"silenttoggle":        @"静音切换",
-            @"siri":                @"Siri",
-            @"rotationlock":        @"旋转锁定",
-            @"respring":            @"注销 (Respring)",
-            @"safemode":            @"安全模式",
-            @"reboot":              @"重启",
-            @"openapp":             @"打开 App",
-            @"shortcut":            @"快捷指令",
-            @"shellcommand":        @"Shell 命令"
-        };
-    });
-    return map;
-}
-
-// 动作对应 validValues / validTitles 数组（按字典序）
-static NSArray *kActionValues(void) {
-    return @[ @"appswitcher", @"controlcenter", @"flashlight", @"homescreen",
-              @"lockscreen", @"none", @"notificationcenter", @"openapp",
-              @"reboot", @"respring", @"rotationlock", @"safemode",
-              @"screenshot", @"shellcommand", @"shortcut", @"silenttoggle", @"siri" ];
-}
-
 // =============================================================================
 #pragma mark - GestureProRootListController
 // =============================================================================
