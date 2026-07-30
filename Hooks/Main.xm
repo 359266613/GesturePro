@@ -1,177 +1,291 @@
 // GesturePro — 状态栏手势核心 Hook
-// Hook SpringBoard 启动流程，注入透明手势覆盖视图到状态栏窗口
+// 完全复刻 SquidGesturePro 架构：SBFTouchPassThroughWindow + Std Gesture Recognizers
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <notify.h>
 #import "AxsPrivate.h"
 #import "AxsConfig.h"
-#import "AxsGestureRecognizer.h"
 #import "AxsActionExecutor.h"
 
 // =============================================================================
-#pragma mark - 状态栏覆盖视图管理
+#pragma mark - 手势代理（处理区域判定 + 动作执行）
 // =============================================================================
 
-// 关联对象 key（标记覆盖视图已添加）
-static char kAxsOverlayKey;
-
-@interface AxsOverlayManager : NSObject <AxsGestureRecognizerDelegate>
-+ (instancetype)sharedManager;
-- (void)ensureOverlayInstalled;
-- (void)removeOverlayIfNeeded;
+@interface AxsGestureDelegate : NSObject <UIGestureRecognizerDelegate>
+@property (nonatomic, assign) NSInteger region; // 当前手势绑定的区域
 @end
 
-@implementation AxsOverlayManager
+@implementation AxsGestureDelegate
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+       shouldReceiveTouch:(UITouch *)touch {
+    // 根据触摸 X 坐标判定所属区域
+    CGPoint point = [touch locationInView:nil]; // 屏幕坐标
+    CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+    self.region = [self regionForTouchX:point.x screenWidth:screenW];
+    return YES;
+}
+
+- (NSInteger)regionForTouchX:(CGFloat)x screenWidth:(CGFloat)screenWidth {
+    CGFloat ratio = x / screenWidth;
+    if (ratio < kAxsRegionLeftRatio)  return AxsStatusBarRegionLeft;
+    if (ratio > kAxsRegionRightRatio) return AxsStatusBarRegionRight;
+    return AxsStatusBarRegionIsland;
+}
+
+@end
+
+// =============================================================================
+#pragma mark - 手势窗口管理器
+// =============================================================================
+
+@interface AxsGestureWindowManager : NSObject
+
+@property (nonatomic, strong) UIWindow *gestureWindow;
+@property (nonatomic, strong) AxsGestureDelegate *gestureDelegate;
+@property (nonatomic, strong) UITapGestureRecognizer *singleTapGR;
+@property (nonatomic, strong) UITapGestureRecognizer *doubleTapGR;
+@property (nonatomic, strong) UILongPressGestureRecognizer *longPressGR;
+@property (nonatomic, strong) UISwipeGestureRecognizer *swipeLeftGR;
+@property (nonatomic, strong) UISwipeGestureRecognizer *swipeRightGR;
+@property (nonatomic, assign) BOOL configObserverRegistered;
+
++ (instancetype)sharedManager;
+- (void)setupGestureWindow;
+- (void)teardownGestureWindow;
+- (void)updateGestureWindowFrame;
+
+@end
+
+@implementation AxsGestureWindowManager
 
 + (instancetype)sharedManager {
-    static AxsOverlayManager *manager;
+    static AxsGestureWindowManager *manager = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        manager = [[AxsOverlayManager alloc] init];
+        manager = [[AxsGestureWindowManager alloc] init];
     });
     return manager;
 }
 
-// 查找状态栏窗口（iOS 16 兼容多种类名）
-// 不使用 _statusBarWindow KVC（启动早期会抛 NSException 导致 crash）
-- (UIWindow *)statusBarWindow {
+// =============================================================================
+#pragma mark - 创建手势窗口（核心逻辑，完美复刻 SquidGesturePro）
+// =============================================================================
+
+- (void)setupGestureWindow {
+    // 只在 SpringBoard 已启动且启用时创建
+    if (![AxsConfig sharedConfig].isEnabled) return;
+    if (self.gestureWindow) return; // 已存在
+
     @try {
-        NSArray *windows = [UIApplication sharedApplication].windows;
-        // 第一轮：匹配已知的状态栏窗口类名
-        for (UIWindow *window in windows) {
-            NSString *className = NSStringFromClass([window class]);
-            if ([className isEqualToString:@"UIStatusBarWindow"] ||
-                [className isEqualToString:@"_UIStatusBarWindow"] ||
-                [className isEqualToString:@"UIApplicationStatusBarWindow"]) {
-                return window;
-            }
+        // 1. 查找 keyWindow 获取状态栏 frame
+        UIWindow *keyWindow = nil;
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+            if (w.isKeyWindow) { keyWindow = w; break; }
         }
-        // 第二轮回退：找 keyWindow（部分设备状态栏渲染在 keyWindow 上）
-        for (UIWindow *window in windows) {
-            if (window.isKeyWindow && window.windowLevel >= UIWindowLevelNormal) {
-                return window;
-            }
-        }
-    } @catch (NSException *e) {
-        // SpringBoard 尚未完全初始化时 .windows 可能抛异常，安全忽略
-    }
-    return nil;
-}
+        if (!keyWindow) return;
 
-// 添加覆盖视图到状态栏窗口
-- (void)ensureOverlayInstalled {
-    @try {
-        // 检查是否启用
-        if (![AxsConfig sharedConfig].enabled) {
-            [self removeOverlayIfNeeded];
-            return;
+        CGRect statusBarFrame;
+        if ([keyWindow respondsToSelector:@selector(statusBarFrame)]) {
+            statusBarFrame = [[keyWindow valueForKey:@"statusBarFrame"] CGRectValue];
+        } else {
+            // 兜底：尝试通过 windowScene 获取
+            statusBarFrame = [self statusBarFrameFromScene:keyWindow];
         }
 
-        UIWindow *sbWindow = [self statusBarWindow];
-        if (!sbWindow) {
-            // 状态栏窗口尚未创建，延迟 0.5s 重试
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
-                           dispatch_get_main_queue(), ^{
-                [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
-            });
-            return;
+        if (CGRectIsEmpty(statusBarFrame)) {
+            statusBarFrame = CGRectMake(0, 0, keyWindow.bounds.size.width, kAxsStateBarHeight);
         }
 
-        // 检查是否已经添加了覆盖视图（通过关联对象）
-        AxsGestureRecognizer *existingOverlay = objc_getAssociatedObject(sbWindow, &kAxsOverlayKey);
-        if (existingOverlay) {
-            // 视图已存在，确保在窗口最上层可接收触摸
-            if (existingOverlay.superview != sbWindow) {
-                [sbWindow addSubview:existingOverlay];
-            }
-            [sbWindow bringSubviewToFront:existingOverlay];
-            return;
+        // 2. 创建 TouchPassThroughWindow（触摸穿透窗口）
+        //    SBFTouchPassThroughWindow 的 hitTest: 返回 nil，让底层视图正常接收触摸
+        //    但其子视图（手势识别器）仍能接收触摸
+        Class passThroughClass = NSClassFromString(@"SBFTouchPassThroughWindow");
+        if (!passThroughClass) {
+            passThroughClass = [UIWindow class];
         }
 
-        // 获取状态栏框架
-        CGRect statusBarFrame = sbWindow.bounds;
-        @try {
-            if ([sbWindow respondsToSelector:@selector(statusBarFrame)]) {
-                statusBarFrame = [[sbWindow valueForKey:@"statusBarFrame"] CGRectValue];
-            }
-        } @catch (NSException *e) {
-            statusBarFrame = sbWindow.bounds;
+        self.gestureWindow = [[passThroughClass alloc] initWithFrame:statusBarFrame];
+        self.gestureWindow.windowLevel = UIWindowLevelStatusBar + 1; // 浮在状态栏上方
+        self.gestureWindow.backgroundColor = [UIColor clearColor];
+        self.gestureWindow.userInteractionEnabled = YES;
+        self.gestureWindow.hidden = NO;
+
+        // iOS 13+ 需要设置 windowScene
+        if (@available(iOS 13.0, *)) {
+            self.gestureWindow.windowScene = keyWindow.windowScene;
         }
 
-        // 调整：在 iPhone 14 Pro 上状态栏高度为 54pt，确保覆盖整个状态栏区域
-        CGFloat height = MAX(statusBarFrame.size.height, kAxsStateBarHeight);
-        statusBarFrame.size.height = height;
-        statusBarFrame.origin.y = 0;
-        statusBarFrame.origin.x = 0;
-        statusBarFrame.size.width = sbWindow.bounds.size.width;
+        [self.gestureWindow makeKeyAndVisible];
+        // makeKeyAndVisible 会让它成为 keyWindow，需要恢复原 keyWindow
+        [keyWindow makeKeyWindow];
 
-        // 创建透明覆盖视图
-        AxsGestureRecognizer *overlay = [[AxsGestureRecognizer alloc] initWithFrame:statusBarFrame];
-        overlay.delegate = self;
-        overlay.backgroundColor = [UIColor clearColor];
-        overlay.userInteractionEnabled = YES;
-        overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        // 3. 添加手势识别器
+        [self setupGestureRecognizers];
 
-        [sbWindow addSubview:overlay];
-        // 关键：将覆盖视图置于窗口最顶层，确保触摸事件不被其他视图遮挡
-        [sbWindow bringSubviewToFront:overlay];
-        objc_setAssociatedObject(sbWindow, &kAxsOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-        // 监听设置变更通知
+        // 4. 注册配置变更监听
         [self registerConfigObserver];
+
     } @catch (NSException *e) {
-        // 整体异常保护，避免 SpringBoard crash
+        self.gestureWindow = nil;
     }
 }
 
-// 移除覆盖视图
-- (void)removeOverlayIfNeeded {
-    @try {
-        UIWindow *sbWindow = [self statusBarWindow];
-        if (!sbWindow) return;
-
-        AxsGestureRecognizer *overlay = objc_getAssociatedObject(sbWindow, &kAxsOverlayKey);
-        if (overlay) {
-            [overlay removeFromSuperview];
-            objc_setAssociatedObject(sbWindow, &kAxsOverlayKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-    } @catch (NSException *e) {
-        // 整体异常保护
+- (void)teardownGestureWindow {
+    if (self.gestureWindow) {
+        self.gestureWindow.hidden = YES;
+        self.gestureWindow = nil;
     }
+    self.gestureDelegate = nil;
 }
 
-// 监听 notify_post 通知（设置面板变更时重新加载配置）
+- (void)updateGestureWindowFrame {
+    if (!self.gestureWindow) return;
+    UIWindow *keyWindow = nil;
+    for (UIWindow *w in [UIApplication sharedApplication].windows) {
+        if (w.isKeyWindow) { keyWindow = w; break; }
+    }
+    if (!keyWindow) return;
+
+    CGRect frame;
+    if ([keyWindow respondsToSelector:@selector(statusBarFrame)]) {
+        frame = [[keyWindow valueForKey:@"statusBarFrame"] CGRectValue];
+    } else {
+        frame = CGRectMake(0, 0, keyWindow.bounds.size.width, kAxsStateBarHeight);
+    }
+    if (CGRectIsEmpty(frame)) {
+        frame = CGRectMake(0, 0, keyWindow.bounds.size.width, kAxsStateBarHeight);
+    }
+    self.gestureWindow.frame = frame;
+}
+
+// =============================================================================
+#pragma mark - 手势识别器（完全复刻 SquidGesturePro）
+// =============================================================================
+
+- (void)setupGestureRecognizers {
+    self.gestureDelegate = [[AxsGestureDelegate alloc] init];
+
+    // 单击
+    self.singleTapGR = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap:)];
+    self.singleTapGR.numberOfTapsRequired = 1;
+    self.singleTapGR.delegate = self.gestureDelegate;
+    [self.gestureWindow addGestureRecognizer:self.singleTapGR];
+
+    // 双击
+    self.doubleTapGR = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
+    self.doubleTapGR.numberOfTapsRequired = 2;
+    self.doubleTapGR.delegate = self.gestureDelegate;
+    [self.gestureWindow addGestureRecognizer:self.doubleTapGR];
+
+    // 单击等待双击失败后才触发（关键！）
+    [self.singleTapGR requireGestureRecognizerToFail:self.doubleTapGR];
+
+    // 长按
+    self.longPressGR = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
+    self.longPressGR.minimumPressDuration = kAxsLongPressMinDuration;
+    self.longPressGR.delegate = self.gestureDelegate;
+    [self.gestureWindow addGestureRecognizer:self.longPressGR];
+
+    // 左滑
+    self.swipeLeftGR = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipeLeft:)];
+    self.swipeLeftGR.direction = UISwipeGestureRecognizerDirectionLeft;
+    self.swipeLeftGR.delegate = self.gestureDelegate;
+    [self.gestureWindow addGestureRecognizer:self.swipeLeftGR];
+
+    // 右滑
+    self.swipeRightGR = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipeRight:)];
+    self.swipeRightGR.direction = UISwipeGestureRecognizerDirectionRight;
+    self.swipeRightGR.delegate = self.gestureDelegate;
+    [self.gestureWindow addGestureRecognizer:self.swipeRightGR];
+}
+
+// =============================================================================
+#pragma mark - 手势回调
+// =============================================================================
+
+- (void)handleSingleTap:(UITapGestureRecognizer *)gr {
+    if (gr.state != UIGestureRecognizerStateEnded) return;
+    [AxsActionExecutor executeActionForRegion:self.gestureDelegate.region gesture:AxsGestureTypeTap];
+}
+
+- (void)handleDoubleTap:(UITapGestureRecognizer *)gr {
+    if (gr.state != UIGestureRecognizerStateEnded) return;
+    [AxsActionExecutor executeActionForRegion:self.gestureDelegate.region gesture:AxsGestureTypeDoubleTap];
+}
+
+- (void)handleLongPress:(UILongPressGestureRecognizer *)gr {
+    if (gr.state != UIGestureRecognizerStateBegan) return;
+    [AxsActionExecutor executeActionForRegion:self.gestureDelegate.region gesture:AxsGestureTypeLongPress];
+}
+
+- (void)handleSwipeLeft:(UISwipeGestureRecognizer *)gr {
+    if (gr.state != UIGestureRecognizerStateEnded) return;
+    [AxsActionExecutor executeActionForRegion:self.gestureDelegate.region gesture:AxsGestureTypeSwipeLeft];
+}
+
+- (void)handleSwipeRight:(UISwipeGestureRecognizer *)gr {
+    if (gr.state != UIGestureRecognizerStateEnded) return;
+    [AxsActionExecutor executeActionForRegion:self.gestureDelegate.region gesture:AxsGestureTypeSwipeRight];
+}
+
+// =============================================================================
+#pragma mark - 配置变更监听
+// =============================================================================
+
 - (void)registerConfigObserver {
-    static BOOL registered = NO;
-    if (registered) return;
-    registered = YES;
+    if (self.configObserverRegistered) return;
+    self.configObserverRegistered = YES;
 
+    // 使用 CFNotificationCenter Darwin 通知（跨进程可靠，与 SquidGesturePro 一致）
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)self,
+        configChangedCallback,
+        CFSTR("com.axs.gesturepro.prefs-changed"),
+        NULL,
+        CFNotificationSuspensionBehaviorDeliverImmediately
+    );
+}
+
+static void configChangedCallback(CFNotificationCenterRef center, void *observer,
+                                   CFStringRef name, const void *object,
+                                   CFDictionaryRef userInfo) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        int token = 0;
-        notify_register_dispatch("com.axs.gesturepro.prefs-changed", &token,
-            dispatch_get_main_queue(), ^(int t) {
-                if ([AxsConfig sharedConfig].enabled) {
-                    [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
-                } else {
-                    [[AxsOverlayManager sharedManager] removeOverlayIfNeeded];
-                }
-            });
+        AxsGestureWindowManager *mgr = [AxsGestureWindowManager sharedManager];
+        if ([AxsConfig sharedConfig].isEnabled) {
+            if (!mgr.gestureWindow) {
+                [mgr setupGestureWindow];
+            }
+        } else {
+            [mgr teardownGestureWindow];
+        }
     });
 }
 
 // =============================================================================
-#pragma mark - AxsGestureRecognizerDelegate
+#pragma mark - 辅助
 // =============================================================================
 
-- (void)gestureRecognizedInRegion:(NSInteger)region gesture:(NSInteger)gesture {
-    [AxsActionExecutor executeActionForRegion:region gesture:gesture];
+- (CGRect)statusBarFrameFromScene:(UIWindow *)window {
+    if (@available(iOS 13.0, *)) {
+        UIWindowScene *scene = window.windowScene;
+        if (scene && [scene respondsToSelector:@selector(statusBarManager)]) {
+            id manager = [scene valueForKey:@"statusBarManager"];
+            if (manager && [manager respondsToSelector:@selector(statusBarFrame)]) {
+                NSValue *val = [manager valueForKey:@"statusBarFrame"];
+                return [val CGRectValue];
+            }
+        }
+    }
+    return CGRectZero;
 }
 
 @end
 
 // =============================================================================
-#pragma mark - SpringBoard Hooks
+#pragma mark - SpringBoard Hook
 // =============================================================================
 
 %hook SpringBoard
@@ -179,20 +293,27 @@ static char kAxsOverlayKey;
 - (void)applicationDidFinishLaunching:(id)arg1 {
     %orig;
 
-    // 延迟安装覆盖视图，确保 UIStatusBarWindow 已创建
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+    // 延迟创建手势窗口（确保 SpringBoard 完全初始化）
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
-        [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
+        [[AxsGestureWindowManager sharedManager] setupGestureWindow];
 
-        // 监听应用进入前台，状态栏窗口可能会重新创建
+        // 前台/后台切换时重建
         [[NSNotificationCenter defaultCenter]
             addObserverForName:UIApplicationDidBecomeActiveNotification
             object:nil
             queue:[NSOperationQueue mainQueue]
             usingBlock:^(NSNotification *note) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                                dispatch_get_main_queue(), ^{
-                    [[AxsOverlayManager sharedManager] ensureOverlayInstalled];
+                    AxsGestureWindowManager *mgr = [AxsGestureWindowManager sharedManager];
+                    if ([AxsConfig sharedConfig].isEnabled) {
+                        if (!mgr.gestureWindow) {
+                            [mgr setupGestureWindow];
+                        } else {
+                            [mgr updateGestureWindowFrame];
+                        }
+                    }
                 });
             }];
     });
@@ -201,7 +322,7 @@ static char kAxsOverlayKey;
 %end
 
 // =============================================================================
-#pragma mark - %ctor — 默认值持久化
+#pragma mark - %ctor
 // =============================================================================
 
 %ctor {
